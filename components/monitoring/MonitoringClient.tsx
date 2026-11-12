@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Video, FileVideo } from "lucide-react";
@@ -9,8 +9,30 @@ import Button from "../ui/Button";
 import EmptyState from "../ui/EmptyState";
 import Modal from "../ui/Modal";
 import SourceDialog from "./SourceDialog";
+import { LiveFrames, useInView } from "./LiveFeed";
 import { removeSource } from "@/app/dashboard/monitoring-actions";
 import type { MonitoringData, SourceCard } from "@/type/monitoring";
+
+function SourcePlaceholder({ type }: { type: SourceCard["sourceType"] }) {
+  return <>
+    {type === "cctv_stream" ? <Video size={42} strokeWidth={1.2} /> : <FileVideo size={42} strokeWidth={1.2} />}
+    <span className="text-xs">{type === "cctv_stream" ? "Sumber CCTV" : "Video Unggahan"}</span>
+  </>;
+}
+
+// Video live beranotasi (480 px, ~15 fps) di kotak media kartu; hanya diambil saat kartu terlihat di layar.
+function CardMedia({ source }: { source: SourceCard }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref);
+  const placeholder = <SourcePlaceholder type={source.sourceType} />;
+  return (
+    <div ref={ref} className="flex aspect-video flex-col items-center justify-center gap-2 overflow-hidden bg-gradient-to-br from-[#EEEAF0] to-purple-50 text-[#4D0077]">
+      {source.liveSessionId && inView
+        ? <LiveFrames key={source.liveSessionId} sessionId={source.liveSessionId} className="h-full w-full object-cover" fallback={placeholder} />
+        : placeholder}
+    </div>
+  );
+}
 
 export default function MonitoringClient({ data, error }: { data: MonitoringData; error: string | null }) {
   const [search, setSearch] = useState("");
@@ -37,10 +59,7 @@ export default function MonitoringClient({ data, error }: { data: MonitoringData
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((source) => (
               <article key={source.id} className="overflow-hidden rounded-xl bg-white">
-                <div className="flex aspect-video flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#EEEAF0] to-purple-50 text-[#4D0077]">
-                  {source.sourceType === "cctv_stream" ? <Video size={42} strokeWidth={1.2} /> : <FileVideo size={42} strokeWidth={1.2} />}
-                  <span className="text-xs">{source.sourceType === "cctv_stream" ? "Sumber CCTV" : "Video Unggahan"}</span>
-                </div>
+                <CardMedia source={source} />
                 <div className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h2 className="truncate text-sm font-medium text-zinc-900" title={source.name}>{source.name}</h2><p className="mt-1 text-xs text-zinc-500">{source.locationName}</p></div>
                     <button type="button" disabled={pending} aria-label={`Hapus ${source.name}`} onClick={() => { setDeleteError(""); setDeleting(source); }} className="rounded-lg bg-red-50 p-1.5 text-red-600"><Trash2 size={15} /></button>

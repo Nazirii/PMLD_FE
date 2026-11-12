@@ -4,6 +4,8 @@ export interface SourceCard extends Option {
   locationName: string;
   sourceType: "cctv_stream" | "video_upload";
   status: string;
+  /** Sesi analisis yang sedang berjalan (untuk tayangan langsung), null kalau tidak ada. */
+  liveSessionId: string | null;
 }
 export interface MonitoringData { sources: SourceCard[]; locations: Option[]; environments: Option[] }
 export interface AnalysisSession {

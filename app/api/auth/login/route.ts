@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getBackendUrl } from "@/lib/backend";
+import { TOKEN_COOKIE, tokenCookieOptions } from "@/lib/session-cookie";
 
 function backendMessage(data: unknown, fallback: string): string {
   if (data && typeof data === "object" && "detail" in data && typeof data.detail === "string") {
@@ -89,13 +90,7 @@ export async function POST(request: NextRequest) {
     }, { headers: { "Cache-Control": "no-store" } });
 
     // Simpan token di cookie HttpOnly, bukan localStorage.
-    response.cookies.set("apd_access_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 8,
-    });
+    response.cookies.set(TOKEN_COOKIE, token, tokenCookieOptions);
 
     return response;
   } catch {

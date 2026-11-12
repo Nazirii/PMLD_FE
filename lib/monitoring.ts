@@ -1,6 +1,7 @@
 import "server-only";
 import { backendRequest, BackendError } from "./backend";
 import { readBackendList } from "./backend-list";
+import { validId } from "./monitoring-validation";
 import type { AnalysisData, MonitoringData, SourceCard } from "@/type/monitoring";
 
 function rows(value: unknown): Record<string, unknown>[] {
@@ -18,7 +19,8 @@ function number(value: unknown): number {
 function sourceCard(item: Record<string, unknown>, locationName: string): SourceCard {
   if (!["cctv_stream", "video_upload"].includes(String(item.source_type))) throw new BackendError("Jenis sumber tidak valid.", 502);
   return { id: text(item.id), name: text(item.name), locationId: item.location_id === null ? null : text(item.location_id),
-    locationName, sourceType: item.source_type as SourceCard["sourceType"], status: text(item.status) };
+    locationName, sourceType: item.source_type as SourceCard["sourceType"], status: text(item.status),
+    liveSessionId: typeof item.active_session_id === "string" && validId(item.active_session_id) ? item.active_session_id : null };
 }
 
 export async function getMonitoring(): Promise<MonitoringData> {

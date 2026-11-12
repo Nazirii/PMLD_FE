@@ -6,6 +6,7 @@ import { ArrowLeft, Maximize2, Video, X } from "lucide-react";
 import Button from "../ui/Button";
 import EmptyState from "../ui/EmptyState";
 import Modal from "../ui/Modal";
+import { LiveFeed } from "./LiveFeed";
 import { controlAnalysis } from "@/app/dashboard/monitoring-actions";
 import { jakartaDay } from "@/lib/monitoring-validation";
 import type { AnalysisData, Detection } from "@/type/monitoring";
@@ -26,10 +27,12 @@ export default function AnalysisClient({ sourceId, initialData, initialError }: 
   const [offset, setOffset] = useState(0);
   const [date, setDate] = useState("");
   const [expanded, setExpanded] = useState<Detection | null>(null);
+  const [liveExpanded, setLiveExpanded] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [pending, startTransition] = useTransition();
   const processing = data?.session?.status === "processing";
+  const liveSessionId = processing ? data?.session?.id ?? null : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +72,7 @@ export default function AnalysisClient({ sourceId, initialData, initialError }: 
   function control() {
     if (!data || pending) return;
     setActionError(null);
+    setLiveExpanded(false);
     startTransition(async () => {
       try {
         const result = await controlAnalysis(sourceId, processing ? "stop" : "start");
@@ -77,6 +81,8 @@ export default function AnalysisClient({ sourceId, initialData, initialError }: 
       } catch { setActionError("Status permintaan belum dapat dikonfirmasi. Muat ulang sebelum mencoba lagi."); }
     });
   }
+  const snapshotView = snapshot ? <><EvidenceImage key={snapshot.id} log={snapshot} /><button type="button" aria-label="Perbesar dokumentasi" onClick={() => setExpanded(snapshot)} className="absolute bottom-3 right-3 rounded-lg bg-black/50 p-2 text-white"><Maximize2 size={18} /></button></>
+    : <div className="p-8 text-center text-zinc-400"><Video size={48} strokeWidth={1.2} className="mx-auto mb-3" /><p className="text-sm">Belum ada snapshot deteksi.</p><p className="mt-2 text-xs">{processing ? "Menyambungkan tayangan langsung..." : "Tayangan video langsung tampil saat analisis berjalan."}</p></div>;
   return (
     <section className="space-y-6">
       <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-lg bg-[#EEEAF0] px-3 py-2 text-xs text-[#4D0077]"><ArrowLeft size={14} />Kembali</Link>
@@ -89,8 +95,10 @@ export default function AnalysisClient({ sourceId, initialData, initialError }: 
       {data && <>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
           <div className="relative flex min-h-64 items-center justify-center overflow-hidden rounded-xl bg-white">
-            {snapshot ? <><EvidenceImage key={snapshot.id} log={snapshot} /><button type="button" aria-label="Perbesar dokumentasi" onClick={() => setExpanded(snapshot)} className="absolute bottom-3 right-3 rounded-lg bg-black/50 p-2 text-white"><Maximize2 size={18} /></button></>
-              : <div className="p-8 text-center text-zinc-400"><Video size={48} strokeWidth={1.2} className="mx-auto mb-3" /><p className="text-sm">Belum ada snapshot deteksi.</p><p className="mt-2 text-xs">Tayangan video langsung belum tersedia.</p></div>}
+            {liveSessionId && !liveExpanded
+              ? <LiveFeed key={liveSessionId} sessionId={liveSessionId} className="aspect-video w-full object-contain" fallback={snapshotView}
+                  overlay={<button type="button" aria-label="Perbesar tayangan langsung" onClick={() => setLiveExpanded(true)} className="absolute bottom-3 right-3 rounded-lg bg-black/50 p-2 text-white"><Maximize2 size={18} /></button>} />
+              : snapshotView}
             <span className="absolute left-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-zinc-700">{data.session ? statusNames[data.session.status] : "Belum ada sesi"}</span>
           </div>
           <aside className="flex flex-col items-center justify-center rounded-xl bg-white p-6 text-center">
@@ -103,7 +111,7 @@ export default function AnalysisClient({ sourceId, initialData, initialError }: 
             <div className="mt-3 flex gap-6 text-xs text-zinc-500"><span>{data.compliant} Patuh</span><span>{data.violations} Melanggar</span></div>
           </aside>
         </div>
-        <p className="text-xs text-zinc-400">{snapshot ? `Snapshot dokumentasi ${timestamp(snapshot.detectedAt, true)}, ${timestamp(snapshot.detectedAt)} WIB.` : "Snapshot akan tersedia jika backend mencatat pelanggaran."} {processing && "Data diperbarui tiap 5 detik saat tab aktif."}</p>
+        <p className="text-xs text-zinc-400">{liveSessionId ? "Tayangan langsung beranotasi: hijau = APD lengkap, oranye = kurang lengkap, merah = tanpa APD, abu-abu = sedang diperiksa." : snapshot ? `Snapshot dokumentasi ${timestamp(snapshot.detectedAt, true)}, ${timestamp(snapshot.detectedAt)} WIB.` : "Snapshot akan tersedia jika backend mencatat pelanggaran."} {processing && "Data diperbarui tiap 5 detik saat tab aktif."}</p>
         {data.session?.error_message && <p role="alert" className="text-sm text-red-600">{data.session.error_message}</p>}
         <div className="flex flex-wrap items-center justify-between gap-3"><p aria-live="polite" className="text-xs text-zinc-500">{loading ? "Memperbarui data..." : data.logs.length ? `Catatan ${offset + 1}–${offset + data.logs.length} · WIB` : "Belum ada catatan · WIB"}</p>
           <label className="flex items-center gap-2 text-xs text-zinc-500">Tanggal pada halaman ini<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="rounded-lg border border-zinc-100 bg-white px-3 py-2" /></label>
@@ -113,6 +121,10 @@ export default function AnalysisClient({ sourceId, initialData, initialError }: 
         </table></div>{!logs.length && <EmptyState title="Belum Ada Catatan Pelanggaran" description={date ? "Tidak ada catatan pada tanggal ini di halaman yang sedang ditampilkan." : "Catatan muncul setelah analisis mendeteksi pelanggaran APD."} />}</div>
         <div className="flex justify-end gap-3"><Button size="sm" variant="secondary" disabled={offset === 0 || loading} onClick={() => setOffset((value) => Math.max(0, value - 20))}>Sebelumnya</Button><Button size="sm" variant="secondary" disabled={!data.hasMore || loading} onClick={() => setOffset((value) => value + 20)}>Berikutnya</Button></div>
       </>}
+      {liveExpanded && liveSessionId && <Modal open onClose={() => setLiveExpanded(false)} title="Tayangan Langsung" description={`${data?.source.name ?? "Sumber video"} · anotasi hasil deteksi APD`} wide>
+        <LiveFeed sessionId={liveSessionId} className="max-h-[75dvh] w-full object-contain" fallback={<p role="status" className="p-8 text-center text-sm text-zinc-500">Tayangan langsung tidak tersedia. Analisis mungkin sudah selesai.</p>} />
+        <button type="button" onClick={() => setLiveExpanded(false)} className="mt-4 inline-flex items-center gap-2 text-sm text-[#4D0077]"><X size={15} />Tutup</button>
+      </Modal>}
       {expanded && <Modal open onClose={() => setExpanded(null)} title="Dokumentasi Pelanggaran" description={`${timestamp(expanded.detectedAt, true)}, ${timestamp(expanded.detectedAt)} WIB`} wide>
         <EvidenceImage key={expanded.id} log={expanded} large /><button type="button" onClick={() => setExpanded(null)} className="mt-4 inline-flex items-center gap-2 text-sm text-[#4D0077]"><X size={15} />Tutup</button>
       </Modal>}

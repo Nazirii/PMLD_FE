@@ -1,10 +1,9 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { getBackendUrl } from "./backend-url";
 
-export function getBackendUrl(): string {
-  return (process.env.API_URL || process.env.FASTAPI_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
-}
+export { getBackendUrl };
 
 export class BackendError extends Error {
   constructor(message: string, public readonly status: number) {
